@@ -11,3 +11,6 @@ python-telegram-bot
 requests
 urllib3
 Werkzeug
+Flask
+google-generativeai
+python-telegram-bot
