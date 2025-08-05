@@ -11,4 +11,3 @@ python-telegram-bot==10.1.0
 requests
 urllib3
 werkzeug
-openai==0.27.0
