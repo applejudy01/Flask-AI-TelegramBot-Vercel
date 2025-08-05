@@ -1,73 +1,89 @@
-
 # -*- coding: utf-8 -*-
 
 import logging
+
 import telegram, os
-import requests
 from flask import Flask, request
 from telegram.ext import Dispatcher, MessageHandler, Filters
 
-# Mistral API key
+
+
+#################
+import Mistral
+	
 MISTRAL_API_KEY = os.getenv("MISTRAL_API_KEY") 
 
-chat_language = os.getenv("INIT_LANGUAGE", default="zh")
-MSG_LIST_LIMIT = int(os.getenv("MSG_LIST_LIMIT", default=20))
+
+chat_language = os.getenv("INIT_LANGUAGE", default = "zh") #amend here to change your preset language
+	
+MSG_LIST_LIMIT = int(os.getenv("MSG_LIST_LIMIT", default = 20))
 LANGUAGE_TABLE = {
-    "zh": "哈囉！",
-    "en": "Hello!",
-    "jp": "こんにちは"
-}
+	  "zh": "哈囉！",
+	  "en": "Hello!",
+      "jp": "こんにちは"
+	}
+
 
 class Prompts:
     def __init__(self):
         self.msg_list = []
         self.msg_list.append(f"AI:{LANGUAGE_TABLE[chat_language]}")
-
+	    
     def add_msg(self, new_msg):
         if len(self.msg_list) >= MSG_LIST_LIMIT:
             self.remove_msg()
         self.msg_list.append(new_msg)
-
+	
     def remove_msg(self):
         self.msg_list.pop(0)
-
+	
     def generate_prompt(self):
-        return "\n".join(self.msg_list)
-
-class MistralChat:
+        return '\n'.join(self.msg_list)	
+	
+class MistralChat:  
     def __init__(self):
         self.prompt = Prompts()
-        self.model = os.getenv("MISTRAL_MODEL", default="mistral-medium")
-
+        self.model = os.getenv("MISTRAL_MODEL", default = "text-davinci-003")
+        self.temperature = float(os.getenv("MISTRAL_TEMPERATURE", default = 0))
+        self.frequency_penalty = float(os.getenv("MISTRAL_FREQUENCY_PENALTY", default = 0))
+        self.presence_penalty = float(os.getenv("MISTRAL_PRESENCE_PENALTY", default = 0.6))
+        self.max_tokens = int(os.getenv("MISTRAL_MAX_TOKENS", default = 240))
+	
     def get_response(self):
-        url = "https://api.mistral.ai/v1/chat/completions"
-        headers = {
-            "Authorization": f"Bearer {MISTRAL_API_KEY}",
-            "Content-Type": "application/json"
-        }
-        payload = {
-            "model": self.model,
-            "messages": [
-                {"role": "system", "content": "你是一個聰明的 AI 助理。"},
-                {"role": "user", "content": self.prompt.generate_prompt()}
-            ]
-        }
+        response = openai.Completion.create(
+	            model=self.model,
+	            prompt=self.prompt.generate_prompt(),
+	            temperature=self.temperature,
+	            frequency_penalty=self.frequency_penalty,
+	            presence_penalty=self.presence_penalty,
+	            max_tokens=self.max_tokens
+                )
+        
+        print("AI回答內容：")        
+        print(response['choices'][0]['text'].strip())
 
-        response = requests.post(url, headers=headers, json=payload)
-
-        if response.status_code == 200:
-            print("AI回答內容：")
-            print(response.json()['choices'][0]['message']['content'].strip())
-            return response.json()['choices'][0]['message']['content'].strip()
-        else:
-            print("AI原始回覆資料內容：")
-            print(response.text)
-            return f"[錯誤] Mistral API 回覆失敗：{response.status_code}"
-
+        print("AI原始回覆資料內容：")      
+        print(response)
+        
+        return response['choices'][0]['text'].strip()
+	
     def add_msg(self, text):
         self.prompt.add_msg(text)
 
+
+
+
+
+
+#####################
+
 telegram_bot_token = str(os.getenv("TELEGRAM_BOT_TOKEN"))
+
+
+
+# Load data from config.ini file
+#config = configparser.ConfigParser()
+#config.read('config.ini')
 
 # Enable logging
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -80,21 +96,37 @@ app = Flask(__name__)
 # Initial bot by Telegram access token
 bot = telegram.Bot(token=telegram_bot_token)
 
+
+
 @app.route('/callback', methods=['POST'])
 def webhook_handler():
+    """Set route /hook with POST method will trigger this method."""
     if request.method == "POST":
         update = telegram.Update.de_json(request.get_json(force=True), bot)
+
+        # Update dispatcher process that handler to process this message
         dispatcher.process_update(update)
     return 'ok'
 
-def reply_handler(bot, update):
-    chat = MistralChat()
-    chat.prompt.add_msg(update.message.text)
-    ai_reply = chat.get_response()
-    update.message.reply_text(ai_reply)
 
+def reply_handler(bot, update):
+    """Reply message."""
+    #text = update.message.text
+    #update.message.reply_text(text)
+    chatgpt = ChatGPT()        
+    
+    chatgpt.prompt.add_msg(update.message.text) #人類的問題 the question humans asked
+    ai_reply_response = chatgpt.get_response() #ChatGPT產生的回答 the answers that ChatGPT gave
+    
+    update.message.reply_text(ai_reply_response) #用AI的文字回傳 reply the text that AI made
+
+# New a dispatcher for bot
 dispatcher = Dispatcher(bot, None)
+
+# Add handler for handling message, there are many kinds of message. For this handler, it particular handle text
+# message.
 dispatcher.add_handler(MessageHandler(Filters.text, reply_handler))
 
 if __name__ == "__main__":
+    # Running server
     app.run(debug=True)
