@@ -1,0 +1,13 @@
+certifi
+charset-normalizer
+click
+Flask
+google-generativeai
+idna
+itsdangerous
+Jinja2
+MarkupSafe
+python-telegram-bot
+requests
+urllib3
+Werkzeug
